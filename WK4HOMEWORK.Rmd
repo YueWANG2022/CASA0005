@@ -1,0 +1,80 @@
+---
+title: "WK4HOMEWORK"
+author: "Yue"
+date: '2022-11-02'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(janitor)
+library(countrycode)
+```
+
+```{r}
+time_series <- read_csv("F:/A_UCL/CASA0005ANDY/DATASET/HDR21-22_Composite_indices_complete_time_series.csv", na= "", 
+                        skip=0, locale = locale(encoding = "latin1"))
+```
+
+
+```{r}
+head(time_series)
+```
+
+```{r}
+gdi20102019 <- time_series %>% select(iso3, country, hdicode, region, gdi_2010,gdi_2019)
+gdi20102019
+```
+
+```{r}
+World_Countries <- sf::st_read("F:/A_UCL/CASA0005ANDY/DATASET/World_Countries/World_Countries__Generalized_.shp")
+
+World_Countries
+```
+
+
+```{r}
+World_Countries <- World_Countries %>% 
+  clean_names() %>% mutate(iso_code = countrycode(country, origin = 'country.name', destination = 'iso2c') )
+
+World_Countries
+```
+
+```{r}
+gdimap <- World_Countries %>% 
+  left_join(.,             gdi20102019,            by =  "country" )
+
+gdimap
+```
+
+```{r}
+gdimapdiff <-gdimap %>% mutate(difference = gdi_2019 - gdi_2010 )
+gdimapdiff
+```
+
+```{r}
+library(tmap)
+library(tmaptools)
+tmap_mode("plot")
+tm_shape(gdimapdiff) + 
+tm_polygons("difference", 
+        style="pretty",
+        palette="Blues",
+        midpoint=NA,
+        title="Differences",
+        alpha = 0.5) + 
+  tm_compass(position = c("right", "bottom"),type = "arrow") + 
+  tm_scale_bar(position = c("right", "bottom")) +
+  tm_layout(title = "Differences in gender index between 2010 and 2019", legend.position = c("left", "bottom"))
+```
+
+
+
+
