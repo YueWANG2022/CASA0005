@@ -7,74 +7,104 @@ output:
   html_document: default
 ---
 
+What is the purpose of this?
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Package loading 
 ```{r}
 library(dplyr)
 library(tidyverse)
 library(janitor)
 library(countrycode)
-```
-
-```{r}
-time_series <- read_csv("F:/A_UCL/CASA0005ANDY/DATASET/HDR21-22_Composite_indices_complete_time_series.csv", na= "", 
-                        skip=0, locale = locale(encoding = "latin1"))
-```
-
-
-```{r}
-head(time_series)
-```
-
-```{r}
-gdi20102019 <- time_series %>% select(iso3, country, hdicode, region, gdi_2010,gdi_2019)
-gdi20102019
-```
-
-```{r}
-World_Countries <- sf::st_read("F:/A_UCL/CASA0005ANDY/DATASET/World_Countries/World_Countries__Generalized_.shp")
-
-World_Countries
-```
-
-
-```{r}
-World_Countries <- World_Countries %>% 
-  clean_names() %>% mutate(iso_code = countrycode(country, origin = 'country.name', destination = 'iso2c') )
-
-World_Countries
-```
-
-```{r}
-gdimap <- World_Countries %>% 
-  left_join(.,             gdi20102019,            by =  "country" )
-
-gdimap
-```
-
-```{r}
-gdimapdiff <-gdimap %>% mutate(difference = gdi_2019 - gdi_2010 )
-gdimapdiff
-```
-
-```{r}
+library(tidyverse)
+library(dplyr)
+library(rgdal) 
+library(sf)
+library(readr)
+library(stringr)
+library(janitor)
+library(maptools)
+library(dplyr)
+library(maptools)
+library(janitor)
+library(RColorBrewer)
+library(sp)
 library(tmap)
 library(tmaptools)
-tmap_mode("plot")
-tm_shape(gdimapdiff) + 
-tm_polygons("difference", 
-        style="pretty",
-        palette="Blues",
-        midpoint=NA,
-        title="Differences",
-        alpha = 0.5) + 
-  tm_compass(position = c("right", "bottom"),type = "arrow") + 
-  tm_scale_bar(position = c("right", "bottom")) +
-  tm_layout(title = "Differences in gender index between 2010 and 2019", legend.position = c("left", "bottom"))
+library(countrycode)
 ```
 
+Loadin in HDI csv data
+```{r}
 
+time_series <- read_csv("/Users/asdfgukyu/Library/CloudStorage/OneDrive-UniversityCollegeLondon/gis/wk4/Git_gis/HDR21-22_Composite_indices_complete_time_series.csv", na= "", 
+                        skip=0, locale = locale(encoding = "latin1")) %>% 
+  select(country, gdi_2010, gdi_2019) %>% 
+  mutate(iso_code = countrycode(country, origin = 'country.name', destination = 'iso2c'))
+```
+
+Load in shapefile, mutate iso2 code
+```{r}
+World_Countries <- sf::st_read("/Users/asdfgukyu/Library/CloudStorage/OneDrive-UniversityCollegeLondon/gis/wk4/Git_gis/World_Countries_(Generalized)/World_Countries__Generalized_.shp") %>% 
+  clean_names() 
+
+```
+
+JOINING
+```{r}
+gdimap <- World_Countries %>% 
+  left_join(.,time_series,by =  "country" ) %>% 
+  mutate(difference = (gdi_2019 - gdi_2010)*100 ) %>% 
+  select(-fid, -aff_iso, -countryaff, -iso_code) %>% 
+  dplyr::rename('% change 2010-2019' = 'difference')
+
+```
+
+SIMPLE INTERACTIVE MAP
+```{r}
+tmap_mode("view")
+breaks = c(-20, -10, -5, -2, -1, 0, 1, 2, 5, 10) 
+
+tm_shape(gdimap) + 
+  tm_polygons("% change 2010-2019", breaks=breaks)
+```
+
+ADVANCE INTERACTIVE MAP
+```{r}
+# library for pop up boxes
+library(leafpop)
+library(leaflet)
+
+#remove the geometry for our pop up boxes to avoid
+popup <-gdimap %>%
+  st_drop_geometry()%>%
+  dplyr::select('% change 2010-2019', 'country')%>%
+  popupTable()
+
+tmap_mode("view")
+
+# set the colour palettes using our previously defined breaks
+pal1 <- gdimap %>%
+  colorBin(palette = "RdYlGn", domain=.$`% change 2010-2019`, bins=breaks)
+
+map<- leaflet(gdimap) %>% 
+  addTiles(group = "OSM (default)") %>%
+  addProviderTiles(providers$Stamen.Toner, group = "Toner") %>%
+  addProviderTiles(providers$Stamen.TonerLite, group = "Toner Lite") %>%
+  addProviderTiles(providers$CartoDB.Positron, group = "CartoDB")%>%
+  addPolygons(weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              popup = popup,
+              fillOpacity = 0.7,
+              fillColor = ~pal1(`% change 2010-2019`)) %>%
+  addLegend(pal=pal1, values = ~`% change 2010-2019`,
+            position ="bottomleft", title = "% change in GDI from 2010 to 2019")
+
+map
+```
 
 
